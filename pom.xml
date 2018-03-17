@@ -43,6 +43,12 @@
             <version>1.9.0</version>
         </dependency>
 
+        <!-- Audio -->
+        <dependency>
+            <groupId>com.googlecode.soundlibs</groupId>
+            <artifactId>jlayer</artifactId>
+            <version>1.0.1.4</version>
+        </dependency>
     </dependencies>
 
 

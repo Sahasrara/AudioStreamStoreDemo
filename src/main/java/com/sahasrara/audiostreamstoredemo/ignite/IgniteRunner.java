@@ -1,8 +1,7 @@
 package com.sahasrara.audiostreamstoredemo.ignite;
 
 import com.sahasrara.audiostreamstoredemo.Runner;
-import javafx.scene.media.Media;
-import javafx.scene.media.MediaPlayer;
+import javazoom.jl.player.Player;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteDataStreamer;
@@ -19,11 +18,16 @@ import javax.cache.event.CacheEntryListenerException;
 import javax.cache.event.CacheEntryUpdatedListener;
 import javax.cache.expiry.CreatedExpiryPolicy;
 import javax.cache.expiry.Duration;
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 /**
  * Instructions:
@@ -41,17 +45,14 @@ public class IgniteRunner implements Runner.DemoRunner {
         try (Ignite ignite = Ignition.start(getResource("example-ignite.xml"));
              IgniteCache<Integer, byte[]> cache = ignite.getOrCreateCache(cacheConfiguration);) {
             // Read Audio
-            File musicStreamed = startStreamReader(cache);
-
-            // Stream Audio
-            streamerFuture = startStreamWriter(ignite, cache);
-            streamerFuture.get(1, TimeUnit.DAYS);
+            PipedOutputStream pipedOutputStream = startStreamReader(cache);
 
             // Play Audio
-            new javafx.embed.swing.JFXPanel();
-            MediaPlayer player = new MediaPlayer(new Media(musicStreamed.toURI().toString()));
-            player.play(); // or stop() or pause() etc etc
+            playAudio(pipedOutputStream);
 
+            // Stream Audio
+            streamerFuture = startStreamWriter(ignite);
+            streamerFuture.get(1, TimeUnit.DAYS);
         } catch (Exception e) {
             System.out.println("Failure during ignite demo " + e.getMessage());
             if (streamerFuture != null) {
@@ -60,7 +61,7 @@ public class IgniteRunner implements Runner.DemoRunner {
         }
     }
 
-    private Future startStreamWriter(Ignite ignite, IgniteCache<Integer, byte[]> cache) throws IOException {
+    private Future startStreamWriter(Ignite ignite) throws IOException {
         return EXECUTOR_SERVICE.submit((Callable<Void>) () -> {
             System.out.println("Starting to stream...");
             try (InputStream musicStream = getResourceAsStream("music.mp3");
@@ -69,6 +70,7 @@ public class IgniteRunner implements Runner.DemoRunner {
                 // Configure loader.
                 streamer.perNodeBufferSize(1024);
                 streamer.perNodeParallelOperations(8);
+                streamer.allowOverwrite(true);
 
                 // Stream
                 int bytesRead;
@@ -76,8 +78,14 @@ public class IgniteRunner implements Runner.DemoRunner {
                 byte[] musicChunk = new byte[1024];
                 int i = 0;
                 while ((bytesRead = musicStream.read(musicChunk)) > 0) {
-                    System.out.println("Streaming chunk = " + i++);
-                    streamer.addData(i, musicChunk);
+                    System.out.println("Streaming chunk = " + i);
+                    if (bytesRead < musicChunk.length) {
+                        byte[] lastChunk = new byte[bytesRead];
+                        System.arraycopy(musicChunk, 0, lastChunk, 0, bytesRead);
+                        streamer.addData(i++, lastChunk);
+                    } else {
+                        streamer.addData(i++, musicChunk);
+                    }
                     totalBytes += bytesRead;
                     streamer.flush();
                 }
@@ -89,13 +97,11 @@ public class IgniteRunner implements Runner.DemoRunner {
         });
     }
 
-    private File startStreamReader(IgniteCache<Integer, byte[]> cache) throws Exception {
+    private PipedOutputStream startStreamReader(IgniteCache<Integer, byte[]> cache) throws Exception {
         System.out.println("Starting to read...");
-        File musicStreamed = File.createTempFile("temp",".mp3");
-        System.out.println("Temp file = " + musicStreamed.getAbsolutePath());
-        musicStreamed.deleteOnExit();
+        PipedOutputStream pipedOutputStream = new PipedOutputStream();
         EXECUTOR_SERVICE.submit((Callable<Void>) () -> {
-            try (OutputStream musicStream = new FileOutputStream(musicStreamed)) {
+            try {
                 ContinuousQuery<Integer, byte[]> query = new ContinuousQuery<>();
                 query.setInitialQuery(new ScanQuery<>(new IgniteBiPredicate<Integer, byte[]>() {
                     @Override
@@ -106,6 +112,19 @@ public class IgniteRunner implements Runner.DemoRunner {
 
                 // Listener
                 final AtomicBoolean closed = new AtomicBoolean(false);
+                OrderedAccumulator<byte[]> accumulator = new OrderedAccumulator<>((index, audio) -> {
+                    try {
+                        System.out.println("Playing " + index);
+                        pipedOutputStream.write(audio);
+                        if (index == 9793) {
+                            pipedOutputStream.close();
+                            closed.set(true);
+                        }
+                    } catch (IOException e) {
+                        System.out.println("Failed to write audio to piped output stream " + e.getMessage());
+                    }
+                });
+
                 query.setLocalListener(new CacheEntryUpdatedListener<Integer, byte[]>() {
                     @Override
                     public void onUpdated(Iterable<CacheEntryEvent<? extends Integer, ? extends byte[]>> iterable)
@@ -114,12 +133,9 @@ public class IgniteRunner implements Runner.DemoRunner {
                             System.out.println("Read chunk " + entry.getKey() + " bytes="
                                     + entry.getValue().length + ']');
                             try {
-                                musicStream.write(entry.getValue());
-                                if (entry.getKey() == 9793) {
-                                    musicStream.close();
-                                    closed.set(true);
-                                }
-                            } catch (IOException e1) {
+                                // Keys don't necessarily come back to us in order
+                                accumulator.put(entry.getKey(), entry.getValue());
+                            } catch (Exception e) {
                                 System.out.println("Failure during write");
                             }
                         }
@@ -138,6 +154,41 @@ public class IgniteRunner implements Runner.DemoRunner {
             }
             return null;
         });
-        return musicStreamed;
+        return pipedOutputStream;
+    }
+
+    private void playAudio(PipedOutputStream pipedOutputStream) {
+        EXECUTOR_SERVICE.execute(() -> {
+            try {
+                Player playMP3 = new Player(new PipedInputStream(pipedOutputStream, 8192));
+                playMP3.play();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    private class OrderedAccumulator<V> {
+        private final ConcurrentSkipListMap<Integer, V> data = new ConcurrentSkipListMap<>();
+        private final BiConsumer<Integer, V> chunkCompleteCallback;
+        private int currentChunk;
+        private int currentChunkCount;
+
+        OrderedAccumulator(BiConsumer<Integer, V> chunkCompleteCallback) {
+            this.chunkCompleteCallback = chunkCompleteCallback;
+            this.currentChunk = 0;
+            this.currentChunkCount = 0;
+        }
+
+        synchronized void put(Integer key, V value) {
+            data.put(key, value);
+            currentChunkCount++;
+            for (int i = currentChunk; i < currentChunkCount; i++, currentChunk++) {
+                if (!data.containsKey(i)) {
+                    break;
+                }
+                chunkCompleteCallback.accept(i, data.get(i));
+            }
+        }
     }
 }
