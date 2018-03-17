@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Future;
@@ -183,11 +185,15 @@ public class IgniteRunner implements Runner.DemoRunner {
         synchronized void put(Integer key, V value) {
             data.put(key, value);
             currentChunkCount++;
-            for (int i = currentChunk; i < currentChunkCount; i++, currentChunk++) {
-                if (!data.containsKey(i)) {
+
+            for (Iterator<Map.Entry<Integer, V>> iterator = data.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<Integer, V> chunk = iterator.next();
+                if (!(chunk.getKey() == currentChunk)) {
                     break;
                 }
-                chunkCompleteCallback.accept(i, data.get(i));
+                currentChunk++;
+                chunkCompleteCallback.accept(chunk.getKey(), chunk.getValue());
+                iterator.remove();
             }
         }
     }
