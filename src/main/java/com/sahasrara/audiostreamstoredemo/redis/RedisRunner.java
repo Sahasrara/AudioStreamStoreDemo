@@ -2,7 +2,6 @@ package com.sahasrara.audiostreamstoredemo.redis;
 
 import com.sahasrara.audiostreamstoredemo.Runner;
 import javazoom.jl.player.Player;
-import jdk.internal.util.xml.impl.Input;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -12,13 +11,13 @@ import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
- * Created by eric on 3/18/18.
+ * Instructions:
+ * 1) Download and start an Redis
+ * 2) Run main with the RedisRunner uncommented
  */
 public class RedisRunner implements Runner.DemoRunner {
     private static final String STREAM_ID = "test";

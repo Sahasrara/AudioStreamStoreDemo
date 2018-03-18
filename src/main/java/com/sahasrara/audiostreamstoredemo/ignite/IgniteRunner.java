@@ -174,17 +174,14 @@ public class IgniteRunner implements Runner.DemoRunner {
         private final ConcurrentSkipListMap<Integer, V> data = new ConcurrentSkipListMap<>();
         private final BiConsumer<Integer, V> chunkCompleteCallback;
         private int currentChunk;
-        private int currentChunkCount;
 
         OrderedAccumulator(BiConsumer<Integer, V> chunkCompleteCallback) {
             this.chunkCompleteCallback = chunkCompleteCallback;
             this.currentChunk = 0;
-            this.currentChunkCount = 0;
         }
 
         synchronized void put(Integer key, V value) {
             data.put(key, value);
-            currentChunkCount++;
 
             for (Iterator<Map.Entry<Integer, V>> iterator = data.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<Integer, V> chunk = iterator.next();
