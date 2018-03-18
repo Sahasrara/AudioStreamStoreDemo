@@ -74,6 +74,7 @@ public class RedisRunner implements Runner.DemoRunner {
                         try {
                             pipedOutputStream.write(audio);
                             if (audio.length < CHUNK_SIZE) {
+                                pipedOutputStream.close();
                                 done = true;
                             }
                         } catch (IOException e) {
