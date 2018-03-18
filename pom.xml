@@ -36,11 +36,16 @@
             <version>4.5.0</version>
         </dependency>
 
-        <kinesisesis -->
+        <!-- Kinesis -->
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>amazon-kinesis-client</artifactId>
             <version>1.9.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-kinesisvideo</artifactId>
+            <version>1.11.297</version>
         </dependency>
 
         <!-- Audio -->
