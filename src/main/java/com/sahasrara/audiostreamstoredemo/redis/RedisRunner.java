@@ -21,8 +21,6 @@ import java.util.concurrent.TimeUnit;
  * 2) Run main with the RedisRunner uncommented
  */
 public class RedisRunner implements Runner.DemoRunner {
-    private static final int CHUNK_SIZE = 4096;
-
     private final JedisPool pool;
     private final ExecutorService executorService;
 
@@ -57,7 +55,7 @@ public class RedisRunner implements Runner.DemoRunner {
         String streamId = String.format(STREAM_ID_PATTERN, runInformation.spawnId);
 
         // Stream Audio
-        Future streamFuture = streamAudio(pool, streamId, "george.wav", runInformation);
+        Future streamFuture = streamAudio(pool, streamId, runInformation.fileName, runInformation);
 
         // Read Audio
         Future readFuture = readAudio(pool, streamId, runInformation);

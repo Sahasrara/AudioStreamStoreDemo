@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
 /**
@@ -51,7 +52,7 @@ public class IgniteRunner implements Runner.DemoRunner {
 
         // Create the main cache
         ignite = Ignition.start(getResource("example-ignite.xml"));
-        ignite.getOrCreateCache(STREAM_ID).close();
+//        ignite.getOrCreateCache(STREAM_ID).close();
     }
 
     public void shutdown() {
@@ -73,22 +74,22 @@ public class IgniteRunner implements Runner.DemoRunner {
         // Configure the cache
         CacheConfiguration<Integer, byte[]> cacheConfiguration = new CacheConfiguration();
         cacheConfiguration.setName(streamId);
-        cacheConfiguration.setGroupName(runInformation.spawnId.toString());
+        cacheConfiguration.setGroupName(STREAM_ID);
         cacheConfiguration.setExpiryPolicyFactory(CreatedExpiryPolicy.factoryOf(Duration.ONE_MINUTE));
 
         // Create Cache
         ignite.getOrCreateCache(cacheConfiguration).close();
 
         // Stream Audio
-        Future streamFuture = streamAudio(ignite, streamId, "george.wav", runInformation);
+        Future streamFuture = streamAudio(ignite, streamId, runInformation.fileName, runInformation);
 
         // Read Audio
-//        Future readFuture = readAudio(ignite, streamId, runInformation);
+        Future readFuture = readAudio(ignite, streamId, runInformation);
 
         // Wait
         try {
             streamFuture.get(100, TimeUnit.DAYS);
-//            readFuture.get(100, TimeUnit.DAYS);
+            readFuture.get(100, TimeUnit.DAYS);
         } catch (Exception e) {
             System.out.println("Task " + runInformation.spawnId + " failed: " + e.getMessage());
         }
@@ -104,15 +105,16 @@ public class IgniteRunner implements Runner.DemoRunner {
                  IgniteDataStreamer<Integer, byte[]> streamer = ignite.dataStreamer(streamId);
             ) {
                 // Configure loader.
-                streamer.perNodeBufferSize(4096);
+                streamer.perNodeBufferSize(CHUNK_SIZE);
                 streamer.perNodeParallelOperations(8);
                 streamer.allowOverwrite(true);
 
                 // Stream
                 int bytesRead;
-                byte[] musicChunk = new byte[4096];
+                byte[] musicChunk = new byte[CHUNK_SIZE];
                 int i = 0;
                 while ((bytesRead = musicStream.read(musicChunk)) > 0) {
+//                    System.out.println("Streaming chunk = " + i);
                     if (bytesRead < musicChunk.length) {
                         byte[] lastChunk = new byte[bytesRead];
                         System.arraycopy(musicChunk, 0, lastChunk, 0, bytesRead);
@@ -133,18 +135,17 @@ public class IgniteRunner implements Runner.DemoRunner {
         return executorService.submit(() -> {
             long startTime = System.currentTimeMillis();
             try {
+                AtomicInteger chunkReadCount = new AtomicInteger(0);
                 ContinuousQuery<Integer, byte[]> query = new ContinuousQuery<>();
                 query.setInitialQuery(
                         new ScanQuery<>((IgniteBiPredicate<Integer, byte[]>) (integer, bytes) -> integer >= 0));
 
                 // Listener
-                final AtomicBoolean closed = new AtomicBoolean(false);
                 query.setLocalListener(iterable -> {
                     for (CacheEntryEvent<? extends Integer, ? extends byte[]> entry : iterable) {
                         try {
-                            if (entry.getKey() == 29) {
-                                closed.set(true);
-                            }
+//                            System.out.println("Read chunk " + entry.getKey() + " bytes=" + entry.getValue().length + ']');
+                            chunkReadCount.incrementAndGet();
                         } catch (Exception e) {
                             System.out.println("Failure during write");
                         }
@@ -154,8 +155,13 @@ public class IgniteRunner implements Runner.DemoRunner {
                 // Execute query.
                 try (IgniteCache<Integer, byte[]> cache = ignite.getOrCreateCache(streamId);
                      QueryCursor<Cache.Entry<Integer, byte[]>> cursor = cache.query(query)) {
-                    while (!closed.get()) {
-                        Thread.sleep(1000);
+                    for (Cache.Entry<Integer, byte[]> chunk : cursor) {
+                        chunkReadCount.incrementAndGet();
+                    }
+
+                    while (chunkReadCount.get() < CHUNK_COUNT) {
+                        System.out.println("Sleeping" + chunkReadCount.get());
+                        Thread.sleep(100);
                     }
                 }
             } catch (Exception e) {

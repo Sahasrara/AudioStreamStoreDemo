@@ -38,7 +38,7 @@ public class Runner {
         long startTime = System.currentTimeMillis();
         System.out.println("Spawning " + runnerCount + " runners");
         for (int spawnId = 0; spawnId < runnerCount; spawnId++) {
-            DemoRunner.RunInformation runInformation = new DemoRunner.RunInformation(spawnId);
+            DemoRunner.RunInformation runInformation = new DemoRunner.RunInformation(spawnId, "george.wav");
             measurements.add(runInformation);
             runInformation.task = executorService.submit(() -> demoRunner.spawnBenchMarker(runInformation));
         }
@@ -68,6 +68,9 @@ public class Runner {
 
 
     public interface DemoRunner {
+        int CHUNK_SIZE = 4096;
+        int TEST_FILE_SIZE = 117832;
+        int CHUNK_COUNT = TEST_FILE_SIZE / CHUNK_SIZE;
         String STREAM_ID = "test";
         String STREAM_ID_PATTERN = STREAM_ID + "-%s";
         void streamThenPlayStream(RunInformation measurement);
@@ -79,9 +82,11 @@ public class Runner {
             public long timeElasped;
             public long readTime;
             public long writeTime;
+            public String fileName;
 
-            RunInformation(int spawnId) {
+            RunInformation(int spawnId, String fileName) {
                 this.spawnId = spawnId;
+                this.fileName = fileName;
             }
         }
 
