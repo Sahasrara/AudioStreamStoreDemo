@@ -73,8 +73,8 @@ public class Runner {
         int CHUNK_COUNT = TEST_FILE_SIZE / CHUNK_SIZE;
         String STREAM_ID = "test";
         String STREAM_ID_PATTERN = STREAM_ID + "-%s";
-        void streamThenPlayStream(RunInformation measurement);
-        void spawnBenchMarker(RunInformation measurement);
+        void streamThenPlayStream(RunInformation runInformation);
+        void spawnBenchMarker(RunInformation runInformation);
 
         class RunInformation {
             public Future task;

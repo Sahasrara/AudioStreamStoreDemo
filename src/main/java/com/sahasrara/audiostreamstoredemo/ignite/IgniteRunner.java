@@ -39,8 +39,6 @@ import java.util.function.BiConsumer;
  * 1) Download and start an Apache Ignite Cluster
  *      1.5) Make sure to use the example-ignite.xml -> ./ignite.sh ../config/example-ignite.xml
  * 2) Run main with the IgniteRunner uncommented
- *
- * https://stackoverflow.com/questions/49460554/apache-ignite-streaming-very-slow
  */
 public class IgniteRunner implements Runner.DemoRunner {
 

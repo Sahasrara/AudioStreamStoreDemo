@@ -48,6 +48,13 @@
             <version>1.11.297</version>
         </dependency>
 
+        <!-- Memcached -->
+        <dependency>
+            <groupId>net.spy</groupId>
+            <artifactId>spymemcached</artifactId>
+            <version>2.12.3</version>
+        </dependency>
+
         <!-- Audio -->
         <dependency>
             <groupId>com.googlecode.soundlibs</groupId>
