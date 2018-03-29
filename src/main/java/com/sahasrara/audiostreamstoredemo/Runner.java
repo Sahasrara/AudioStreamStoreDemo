@@ -1,6 +1,7 @@
 package com.sahasrara.audiostreamstoredemo;
 
 import com.sahasrara.audiostreamstoredemo.ignite.IgniteRunner;
+import com.sahasrara.audiostreamstoredemo.memcached.MemcachedRunner;
 import com.sahasrara.audiostreamstoredemo.redis.RedisRunner;
 
 import java.io.InputStream;
@@ -30,7 +31,11 @@ public class Runner {
 
         // Redis
 //        RedisRunner redisRunner = new RedisRunner(executorService);
-//        redisBenchmark(redisRunner, runnerCount, executorService, measurements);
+//        benchmark(redisRunner, runnerCount, executorService, measurements);
+
+        // Memcached Runner
+//        MemcachedRunner memcachedRunner = new MemcachedRunner(executorService);
+//        benchmark(memcachedRunner, runnerCount, executorService, measurements);
     }
 
     private static void benchmark(DemoRunner demoRunner, int runnerCount, ExecutorService executorService,
@@ -70,7 +75,9 @@ public class Runner {
     public interface DemoRunner {
         int CHUNK_SIZE = 4096;
         int TEST_FILE_SIZE = 117832;
-        int CHUNK_COUNT = TEST_FILE_SIZE / CHUNK_SIZE;
+        int CHUNK_COUNT = TEST_FILE_SIZE / CHUNK_SIZE + (TEST_FILE_SIZE % CHUNK_SIZE > 0 ? 1 : 0);
+        String UTTERANCE_CHUNK_PATTERN = "utterance-%s-chunk#-%d";
+        String TEST_UTTERANCE_NAME = "TEST_UTTERANCE";
         String STREAM_ID = "test";
         String STREAM_ID_PATTERN = STREAM_ID + "-%s";
         void streamThenPlayStream(RunInformation runInformation);

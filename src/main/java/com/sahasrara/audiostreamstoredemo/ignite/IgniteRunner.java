@@ -106,6 +106,7 @@ public class IgniteRunner implements Runner.DemoRunner {
                 streamer.perNodeBufferSize(CHUNK_SIZE);
                 streamer.perNodeParallelOperations(8);
                 streamer.allowOverwrite(true);
+//                streamer.autoFlushFrequency(1);
 
                 // Stream
                 int bytesRead;
@@ -120,7 +121,7 @@ public class IgniteRunner implements Runner.DemoRunner {
                     } else {
                         streamer.addData(i++, musicChunk);
                     }
-                    streamer.flush();
+                    streamer.tryFlush();
                 }
             } catch (Exception e) {
                 System.out.println("Failure during write" + e.getMessage());
@@ -159,7 +160,7 @@ public class IgniteRunner implements Runner.DemoRunner {
 
                     while (chunkReadCount.get() < CHUNK_COUNT) {
                         System.out.println("Sleeping" + chunkReadCount.get());
-                        Thread.sleep(100);
+                        Thread.sleep(50);
                     }
                 }
             } catch (Exception e) {

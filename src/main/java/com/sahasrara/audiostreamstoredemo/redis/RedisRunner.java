@@ -55,10 +55,10 @@ public class RedisRunner implements Runner.DemoRunner {
         String streamId = String.format(STREAM_ID_PATTERN, runInformation.spawnId);
 
         // Stream Audio
-        Future streamFuture = streamAudio(pool, streamId, runInformation.fileName, runInformation);
+        Future streamFuture = streamAudio_LIST(pool, streamId, runInformation.fileName, runInformation);
 
         // Read Audio
-        Future readFuture = readAudio(pool, streamId, runInformation);
+        Future readFuture = readAudio_LIST(pool, streamId, runInformation);
 
         // Wait
         try {
@@ -72,18 +72,16 @@ public class RedisRunner implements Runner.DemoRunner {
         runInformation.timeElasped = System.currentTimeMillis() - startTime;
     }
 
-    private Future readAudio(JedisPool pool, String streamId, RunInformation runInformation) {
+    private Future readAudio_LIST(JedisPool pool, String streamId, RunInformation runInformation) {
         return executorService.submit(() -> {
             long startTime = System.currentTimeMillis();
             try (Jedis jedis = pool.getResource()) {
-                int currentChunk = 0;
-                boolean done = false;
-                while (!done) {
-                    Thread.sleep(50);
-                    List<byte[]> audioList = jedis.lrange(streamId.getBytes(), currentChunk, currentChunk + 9);
-                    currentChunk += audioList.size();
-                    for (byte[] audio : audioList) {
-                        done = audio.length < CHUNK_SIZE;
+                for (int currentChunk = 0; currentChunk < CHUNK_COUNT; currentChunk++) {
+                    byte[] chunk;
+                    List<byte[]> audioList = jedis.lrange(streamId.getBytes(), currentChunk, -1);
+                    while (audioList.size() == 0) {
+                        Thread.sleep(50);
+                        audioList = jedis.lrange(streamId.getBytes(), currentChunk, -1);
                     }
                 }
             } catch (InterruptedException e) {
@@ -93,7 +91,7 @@ public class RedisRunner implements Runner.DemoRunner {
         });
     }
 
-    private Future streamAudio(JedisPool pool, String streamId, String fileName, RunInformation runInformation) {
+    private Future streamAudio_LIST(JedisPool pool, String streamId, String fileName, RunInformation runInformation) {
         return executorService.submit(() -> {
             long startTime = System.currentTimeMillis();
             try (InputStream musicStream = getResourceAsStream(fileName);
@@ -126,7 +124,55 @@ public class RedisRunner implements Runner.DemoRunner {
         });
     }
 
+    private Future readAudio(JedisPool pool, String streamId, RunInformation runInformation) {
+        return executorService.submit(() -> {
+            long startTime = System.currentTimeMillis();
+            try (Jedis jedis = pool.getResource()) {
+                for (int currentChunk = 0; currentChunk < CHUNK_COUNT; currentChunk++) {
+//                    System.out.println("Fetching chunk " + currentChunk);
+                    byte[] chunk;
+                    while ((chunk = jedis.get(
+                            String.format(UTTERANCE_CHUNK_PATTERN, TEST_UTTERANCE_NAME, currentChunk).getBytes()))
+                            == null) {
+                        System.out.println("sleeping" + String.format(UTTERANCE_CHUNK_PATTERN, TEST_UTTERANCE_NAME, currentChunk));
+                        Thread.sleep(50);
+                    }
+                }
+            } catch (InterruptedException e) {
+                System.out.println("Interrupted during polling");
+            }
+            runInformation.readTime = System.currentTimeMillis() - startTime;
+        });
+    }
 
+    private Future streamAudio(JedisPool pool, String streamId, String fileName, RunInformation runInformation) {
+        return executorService.submit(() -> {
+            long startTime = System.currentTimeMillis();
+            try (InputStream musicStream = getResourceAsStream(fileName);
+                 Jedis jedis = pool.getResource()) {
+                int bytesRead;
+//                int totalBytes = 0;
+                byte[] musicChunk = new byte[CHUNK_SIZE];
+                int i = 0;
+                while ((bytesRead = musicStream.read(musicChunk)) > 0) {
+//                    System.out.println("Streaming chunk = " + i);
+                    if (bytesRead < musicChunk.length) {
+                        byte[] lastChunk = new byte[bytesRead];
+                        System.arraycopy(musicChunk, 0, lastChunk, 0, bytesRead);
+                        jedis.set(String.format(UTTERANCE_CHUNK_PATTERN, TEST_UTTERANCE_NAME, i).getBytes(), lastChunk);
+                    } else {
+                        jedis.set(String.format(UTTERANCE_CHUNK_PATTERN, TEST_UTTERANCE_NAME, i).getBytes(), musicChunk);
+                    }
+//                    totalBytes += bytesRead;
+                    i++;
+                }
+//                System.out.println("Bytes streamed = " + totalBytes);
+            } catch (Exception e) {
+                System.out.println("Failed during read " + fileName);
+            }
+            runInformation.writeTime = System.currentTimeMillis() - startTime;
+        });
+    }
 
     // Ignore
     private PipedInputStream readAndReturnAudio(JedisPool pool, String streamId) {

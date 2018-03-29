@@ -2,13 +2,19 @@ package com.sahasrara.audiostreamstoredemo.memcached;
 
 import com.sahasrara.audiostreamstoredemo.Runner;
 import net.spy.memcached.MemcachedClient;
+import net.spy.memcached.transcoders.SerializingTranscoder;
+import net.spy.memcached.transcoders.Transcoder;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.configuration.CacheConfiguration;
+import redis.clients.jedis.Jedis;
 
 import javax.cache.expiry.CreatedExpiryPolicy;
 import javax.cache.expiry.Duration;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -19,7 +25,8 @@ import java.util.concurrent.TimeUnit;
  * 2) Run main with the MemcachedRunner uncommented
  */
 public class MemcachedRunner implements Runner.DemoRunner {
-
+    private static final int NEVER_EXPIRE = 0;
+    private static final Transcoder TRANSCODER = new SerializingTranscoder();
     private final ExecutorService executorService;
 
     public MemcachedRunner(ExecutorService executorService) {
@@ -48,10 +55,10 @@ public class MemcachedRunner implements Runner.DemoRunner {
         }
 
         // Stream Audio
-        Future streamFuture = streamAudio(ignite, streamId, runInformation.fileName, runInformation);
+        Future streamFuture = streamAudio(memcacheClient, streamId, runInformation.fileName, runInformation);
 
         // Read Audio
-        Future readFuture = readAudio(ignite, streamId, runInformation);
+        Future readFuture = readAudio(memcacheClient, streamId, runInformation);
 
         // Wait
         try {
@@ -65,11 +72,60 @@ public class MemcachedRunner implements Runner.DemoRunner {
         runInformation.timeElasped = System.currentTimeMillis() - startTime;
     }
 
-    private Future streamAudio(Ignite ignite, String streamId, String fileName, RunInformation runInformation) {
+    private Future streamAudio(MemcachedClient memcacheClient, String streamId, String fileName,
+                               RunInformation runInformation) {
+        return executorService.submit(() -> {
+            long startTime = System.currentTimeMillis();
+            try (InputStream musicStream = getResourceAsStream(fileName)) {
 
+                int bytesRead;
+//                int totalBytes = 0;
+                byte[] musicChunk = new byte[CHUNK_SIZE];
+                int i = 0;
+                List<Future<Boolean>> results = new LinkedList<>();
+                while ((bytesRead = musicStream.read(musicChunk)) > 0) {
+//                    System.out.println("Streaming chunk = " + i);
+                    if (bytesRead < musicChunk.length) {
+                        byte[] lastChunk = new byte[bytesRead];
+                        System.arraycopy(musicChunk, 0, lastChunk, 0, bytesRead);
+                        results.add(memcacheClient.set(
+                                String.format(UTTERANCE_CHUNK_PATTERN, TEST_UTTERANCE_NAME, i), NEVER_EXPIRE,
+                                lastChunk, TRANSCODER));
+                    } else {
+                        results.add(memcacheClient.set(String.format(UTTERANCE_CHUNK_PATTERN, TEST_UTTERANCE_NAME, i), NEVER_EXPIRE,
+                                musicChunk, TRANSCODER));
+                    }
+                    i++;
+//                    totalBytes += bytesRead;
+                }
+                for (Future<Boolean> result : results) {
+                    result.get(1, TimeUnit.DAYS);
+                }
+//                System.out.println("Bytes streamed = " + totalBytes);
+            } catch (Exception e) {
+                System.out.println("Failed during read " + fileName);
+            }
+            runInformation.writeTime = System.currentTimeMillis() - startTime;
+        });
     }
 
-    private Future readAudio(Ignite ignite, String streamId, RunInformation runInformation) {
-
+    private Future readAudio(MemcachedClient memcacheClient, String streamId, RunInformation runInformation) {
+        return executorService.submit(() -> {
+            long startTime = System.currentTimeMillis();
+            try {
+                for (int currentChunk = 0; currentChunk < CHUNK_COUNT; currentChunk++) {
+//                    System.out.println("Fetching chunk " + currentChunk);
+                    byte[] chunk;
+                    while ((chunk = (byte[]) memcacheClient.get(
+                            String.format(UTTERANCE_CHUNK_PATTERN, TEST_UTTERANCE_NAME, currentChunk), TRANSCODER))
+                            == null) {
+                        Thread.sleep(50);
+                    }
+                }
+            } catch (InterruptedException e) {
+                System.out.println("Interrupted during polling");
+            }
+            runInformation.readTime = System.currentTimeMillis() - startTime;
+        });
     }
 }
