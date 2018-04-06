@@ -49,7 +49,6 @@ public class IgniteRunner implements Runner.DemoRunner {
 
     public IgniteRunner(ExecutorService executorService, int runnerCount) {
         this.executorService = executorService;
-
         // Create the main cache
         ignite = Ignition.start(getResource("example-ignite.xml"));
 

@@ -25,7 +25,7 @@ public class Runner {
     public static void main(String[] args) {
         ExecutorService executorService = Executors.newCachedThreadPool();
         List<DemoRunner.RunInformation> measurements;
-        int runnerCount = 50;
+        int runnerCount = 1;
 
         // Ignite
         for (int i = 0; i < 30; i++) {
@@ -37,9 +37,9 @@ public class Runner {
 
         // Redis
         for (int i = 0; i < 30; i++) {
-//        measurements = new LinkedList<>();
-//        RedisRunner redisRunner = new RedisRunner(executorService, runnerCount);
-//        benchmark(redisRunner, runnerCount, executorService, measurements);
+//            measurements = new LinkedList<>();
+//            RedisRunner redisRunner = new RedisRunner(executorService, runnerCount);
+//            benchmark(redisRunner, runnerCount, executorService, measurements);
         }
 
         // Memcached Runner

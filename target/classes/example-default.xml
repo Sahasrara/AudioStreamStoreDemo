@@ -56,7 +56,6 @@
         <!-- Explicitly configure TCP discovery SPI to provide list of initial nodes. -->
         <property name="discoverySpi">
             <bean class="org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi">
-                <property name="localPort" value="8081"/>
                 <property name="ipFinder">
                     <!--
                         Ignite provides several options for automatic discovery that can be used
