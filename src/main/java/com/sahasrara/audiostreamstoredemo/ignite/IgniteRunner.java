@@ -24,6 +24,8 @@ import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -45,12 +47,17 @@ public class IgniteRunner implements Runner.DemoRunner {
     private final ExecutorService executorService;
     private final Ignite ignite;
 
-    public IgniteRunner(ExecutorService executorService) {
+    public IgniteRunner(ExecutorService executorService, int runnerCount) {
         this.executorService = executorService;
 
         // Create the main cache
         ignite = Ignition.start(getResource("example-ignite.xml"));
-//        ignite.getOrCreateCache(STREAM_ID).close();
+
+        List<String> cacheNames = new LinkedList<>();
+        for (int i = 0; i < runnerCount; i++) {
+            cacheNames.add(String.format(STREAM_ID_PATTERN, i));
+        }
+        ignite.destroyCaches(cacheNames);
     }
 
     public void shutdown() {
@@ -112,6 +119,7 @@ public class IgniteRunner implements Runner.DemoRunner {
                 int bytesRead;
                 byte[] musicChunk = new byte[CHUNK_SIZE];
                 int i = 0;
+                runInformation.firstWriteTimestamp = System.currentTimeMillis();
                 while ((bytesRead = musicStream.read(musicChunk)) > 0) {
 //                    System.out.println("Streaming chunk = " + i);
                     if (bytesRead < musicChunk.length) {
@@ -142,12 +150,10 @@ public class IgniteRunner implements Runner.DemoRunner {
                 // Listener
                 query.setLocalListener(iterable -> {
                     for (CacheEntryEvent<? extends Integer, ? extends byte[]> entry : iterable) {
-                        try {
-//                            System.out.println("Read chunk " + entry.getKey() + " bytes=" + entry.getValue().length + ']');
-                            chunkReadCount.incrementAndGet();
-                        } catch (Exception e) {
-                            System.out.println("Failure during write");
+                        if (runInformation.firstReadTimestamp == 0) {
+                            runInformation.firstReadTimestamp = System.currentTimeMillis();
                         }
+                        chunkReadCount.incrementAndGet();
                     }
                 });
 
@@ -155,6 +161,9 @@ public class IgniteRunner implements Runner.DemoRunner {
                 try (IgniteCache<Integer, byte[]> cache = ignite.getOrCreateCache(streamId);
                      QueryCursor<Cache.Entry<Integer, byte[]>> cursor = cache.query(query)) {
                     for (Cache.Entry<Integer, byte[]> chunk : cursor) {
+                        if (runInformation.firstReadTimestamp == 0) {
+                            runInformation.firstReadTimestamp = System.currentTimeMillis();
+                        }
                         chunkReadCount.incrementAndGet();
                     }
 

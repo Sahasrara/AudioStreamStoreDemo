@@ -6,8 +6,11 @@ import com.sahasrara.audiostreamstoredemo.redis.RedisRunner;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,17 +24,23 @@ public class Runner {
 
     public static void main(String[] args) {
         ExecutorService executorService = Executors.newCachedThreadPool();
-        List<DemoRunner.RunInformation> measurements = new LinkedList<>();
-        int runnerCount = 500;
+        List<DemoRunner.RunInformation> measurements;
+        int runnerCount = 50;
 
         // Ignite
-        IgniteRunner igniteRunner = new IgniteRunner(executorService);
-        benchmark(igniteRunner, runnerCount, executorService, measurements);
-        igniteRunner.shutdown();
+        for (int i = 0; i < 30; i++) {
+            measurements = new LinkedList<>();
+            IgniteRunner igniteRunner = new IgniteRunner(executorService, runnerCount);
+            benchmark(igniteRunner, runnerCount, executorService, measurements);
+            igniteRunner.shutdown();
+        }
 
         // Redis
-//        RedisRunner redisRunner = new RedisRunner(executorService);
+        for (int i = 0; i < 30; i++) {
+//        measurements = new LinkedList<>();
+//        RedisRunner redisRunner = new RedisRunner(executorService, runnerCount);
 //        benchmark(redisRunner, runnerCount, executorService, measurements);
+        }
 
         // Memcached Runner
 //        MemcachedRunner memcachedRunner = new MemcachedRunner(executorService);
@@ -51,31 +60,51 @@ public class Runner {
 
         // Tabulate Results
         System.out.println("Waiting for completion and tabulating results");
-        int totalReadTime = 0;
-        int totalWriteTime = 0;
+        long totalReadTime = 0;
+        long totalWriteTime = 0;
+        long totalElapsedTime = 0;
+        long totalTimeToFirstByte = 0;
+        List<Long> timeToFirstByteList = new ArrayList<>(measurements.size());
         for (DemoRunner.RunInformation runInformation : measurements) {
             try {
                 runInformation.task.get(WAIT_PER_TASK, TimeUnit.DAYS);
                 totalReadTime += runInformation.readTime;
                 totalWriteTime += runInformation.writeTime;
+                totalElapsedTime += runInformation.timeElasped;
+                long timeToFirstByte = runInformation.firstReadTimestamp - runInformation.firstWriteTimestamp;
+                totalTimeToFirstByte += timeToFirstByte;
+                timeToFirstByteList.add(timeToFirstByte);
             } catch (Exception e) {
                 System.out.println("Test task failed: " + e.getMessage());
             }
         }
         long averageReadTime = totalReadTime / runnerCount;
         long averageWriteTime = totalWriteTime / runnerCount;
+        long averageElapsedTime = totalElapsedTime / runnerCount;
+        long averageTimeToFirstByte = totalTimeToFirstByte / runnerCount;
         long totalTime = System.currentTimeMillis() - startTime;
-        System.out.println("Total Time to stream and read " + runnerCount + " audio files: " + totalTime + "ms.\n"
+
+        // Calculate Percentiles
+        timeToFirstByteList.sort(Comparator.naturalOrder());
+        long p99 = timeToFirstByteList.get((int) Math.round(0.99 * timeToFirstByteList.size()-1));
+        long p90 = timeToFirstByteList.get((int) Math.round(0.90 * timeToFirstByteList.size()-1));
+        long p50 = timeToFirstByteList.get((int) Math.round(0.50 * timeToFirstByteList.size()-1));
+        System.out.println(
+                  "Total Time to stream and read " + runnerCount + " audio files: " + totalTime + "ms.\n"
+                + "average complete read and write: " + averageElapsedTime + "ms\n"
+                + "average time to first byte read: " + averageTimeToFirstByte + "ms\n"
                 + "average read time per runner: " + averageReadTime + "ms\n"
                 + "average write time per runner: " + averageWriteTime + "ms\n"
+                + "p99 time to first byte: " + p99 + "ms\n"
+                + "p90 time to first byte: " + p90 + "ms\n"
+                + "p50 time to first byte: " + p50 + "ms\n"
         );
     }
-
 
     public interface DemoRunner {
         int CHUNK_SIZE = 4096;
         int TEST_FILE_SIZE = 117832;
-        int CHUNK_COUNT = TEST_FILE_SIZE / CHUNK_SIZE + (TEST_FILE_SIZE % CHUNK_SIZE > 0 ? 1 : 0);
+        int CHUNK_COUNT = (TEST_FILE_SIZE / CHUNK_SIZE) + ((TEST_FILE_SIZE % CHUNK_SIZE) > 0 ? 1 : 0);
         String UTTERANCE_CHUNK_PATTERN = "utterance-%s-chunk#-%d";
         String TEST_UTTERANCE_NAME = "TEST_UTTERANCE";
         String STREAM_ID = "test";
@@ -89,11 +118,18 @@ public class Runner {
             public long timeElasped;
             public long readTime;
             public long writeTime;
+            public long firstWriteTimestamp;
+            public long firstReadTimestamp;
             public String fileName;
 
             RunInformation(int spawnId, String fileName) {
                 this.spawnId = spawnId;
                 this.fileName = fileName;
+                this.timeElasped = 0;
+                this.readTime = 0;
+                this.writeTime = 0;
+                this.firstReadTimestamp = 0;
+                this.firstWriteTimestamp = 0;
             }
         }
 

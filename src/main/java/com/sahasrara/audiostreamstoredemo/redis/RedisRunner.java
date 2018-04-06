@@ -24,9 +24,17 @@ public class RedisRunner implements Runner.DemoRunner {
     private final JedisPool pool;
     private final ExecutorService executorService;
 
-    public RedisRunner(ExecutorService executorService) {
+    public RedisRunner(ExecutorService executorService, int runnerCount) {
         this.executorService = executorService;
-        this.pool = new JedisPool(new JedisPoolConfig(), "localhost");
+        JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
+        jedisPoolConfig.setMaxTotal(runnerCount * 3);
+        jedisPoolConfig.setMaxIdle(runnerCount * 3);
+//        jedisPoolConfig.setTestOnBorrow(true);
+        this.pool = new JedisPool(jedisPoolConfig, "fultonef.integ.amazon.com", 8080);
+
+        Jedis jedis = this.pool.getResource();
+        jedis.flushAll();
+        jedis.close();
     }
 
     @Override
@@ -83,6 +91,9 @@ public class RedisRunner implements Runner.DemoRunner {
                         Thread.sleep(50);
                         audioList = jedis.lrange(streamId.getBytes(), currentChunk, -1);
                     }
+                    if (runInformation.firstReadTimestamp == 0) {
+                        runInformation.firstReadTimestamp = System.currentTimeMillis();
+                    }
                 }
             } catch (InterruptedException e) {
                 System.out.println("Interrupted during polling");
@@ -105,6 +116,7 @@ public class RedisRunner implements Runner.DemoRunner {
 //                int totalBytes = 0;
                 byte[] musicChunk = new byte[CHUNK_SIZE];
 //                int i = 0;
+                runInformation.firstWriteTimestamp = System.currentTimeMillis();
                 while ((bytesRead = musicStream.read(musicChunk)) > 0) {
 //                    System.out.println("Streaming chunk = " + i++);
                     if (bytesRead < musicChunk.length) {
@@ -137,6 +149,9 @@ public class RedisRunner implements Runner.DemoRunner {
                         System.out.println("sleeping" + String.format(UTTERANCE_CHUNK_PATTERN, TEST_UTTERANCE_NAME, currentChunk));
                         Thread.sleep(50);
                     }
+                    if (runInformation.firstReadTimestamp == 0) {
+                        runInformation.firstReadTimestamp = System.currentTimeMillis();
+                    }
                 }
             } catch (InterruptedException e) {
                 System.out.println("Interrupted during polling");
@@ -154,6 +169,7 @@ public class RedisRunner implements Runner.DemoRunner {
 //                int totalBytes = 0;
                 byte[] musicChunk = new byte[CHUNK_SIZE];
                 int i = 0;
+                runInformation.firstWriteTimestamp = System.currentTimeMillis();
                 while ((bytesRead = musicStream.read(musicChunk)) > 0) {
 //                    System.out.println("Streaming chunk = " + i);
                     if (bytesRead < musicChunk.length) {
