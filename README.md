@@ -2,7 +2,7 @@
 
 Benchmark Results
 
-*50 - 118kb Utterances Streamed and Read Simultaneously from One Node in 4096 byte chunks*
+*50 - 118kb Audio File Streamed and Read Simultaneously from One Node in 4096 byte chunks*
 
 Redis
 
@@ -78,7 +78,7 @@ Remote (Through VIP | Seattle → IAD):
 - p50 time to first byte: 566ms
 
 
-*1 - 118kb Utterances Streamed and Read Simultaneously from One Node in 4096 byte chunks*
+*1 - 118kb Audio File Streamed and Read Simultaneously from One Node in 4096 byte chunks*
 
 Redis
 
