@@ -30,7 +30,7 @@ public class RedisRunner implements Runner.DemoRunner {
         jedisPoolConfig.setMaxTotal(runnerCount * 3);
         jedisPoolConfig.setMaxIdle(runnerCount * 3);
 //        jedisPoolConfig.setTestOnBorrow(true);
-        this.pool = new JedisPool(jedisPoolConfig, "fultonef.integ.amazon.com", 8080);
+        this.pool = new JedisPool(jedisPoolConfig, "localhost", 8080);
 
         Jedis jedis = this.pool.getResource();
         jedis.flushAll();
