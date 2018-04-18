@@ -1,5 +1,6 @@
 package com.sahasrara.audiostreamstoredemo;
 
+import com.sahasrara.audiostreamstoredemo.bookkeeper.BookkeeperRunner;
 import com.sahasrara.audiostreamstoredemo.ignite.IgniteRunner;
 import com.sahasrara.audiostreamstoredemo.memcached.MemcachedRunner;
 import com.sahasrara.audiostreamstoredemo.redis.RedisRunner;
@@ -41,6 +42,13 @@ public class Runner {
 //            RedisRunner redisRunner = new RedisRunner(executorService, runnerCount);
 //            benchmark(redisRunner, runnerCount, executorService, measurements);
         }
+
+        // Bookkeeper
+//        for (int i = 0; i < 30; i++) {
+//            measurements = new LinkedList<>();
+//            BookkeeperRunner bookkeeperRunner = new BookkeeperRunner(executorService);
+//            benchmark(bookkeeperRunner, runnerCount, executorService, measurements);
+//        }
 
         // Memcached Runner
 //        MemcachedRunner memcachedRunner = new MemcachedRunner(executorService);

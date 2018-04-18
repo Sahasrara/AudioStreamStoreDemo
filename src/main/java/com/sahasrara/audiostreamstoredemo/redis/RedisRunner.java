@@ -30,6 +30,7 @@ public class RedisRunner implements Runner.DemoRunner {
         jedisPoolConfig.setMaxTotal(runnerCount * 3);
         jedisPoolConfig.setMaxIdle(runnerCount * 3);
 //        jedisPoolConfig.setTestOnBorrow(true);
+
         this.pool = new JedisPool(jedisPoolConfig, "localhost", 8080);
 
         Jedis jedis = this.pool.getResource();
@@ -84,13 +85,14 @@ public class RedisRunner implements Runner.DemoRunner {
         return executorService.submit(() -> {
             long startTime = System.currentTimeMillis();
             try (Jedis jedis = pool.getResource()) {
-                for (int currentChunk = 0; currentChunk < CHUNK_COUNT; currentChunk++) {
+                for (int currentChunk = 0; currentChunk < CHUNK_COUNT; ) {
                     byte[] chunk;
                     List<byte[]> audioList = jedis.lrange(streamId.getBytes(), currentChunk, -1);
                     while (audioList.size() == 0) {
                         Thread.sleep(50);
                         audioList = jedis.lrange(streamId.getBytes(), currentChunk, -1);
                     }
+                    currentChunk += audioList.size();
                     if (runInformation.firstReadTimestamp == 0) {
                         runInformation.firstReadTimestamp = System.currentTimeMillis();
                     }

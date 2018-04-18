@@ -70,10 +70,7 @@
                             <list>
                                 <!-- In distributed environment, replace with actual host IP address. -->
                                 <!--<value>127.0.0.1:47500..47509</value>-->
-                                <!--<value>localhost:8080</value>-->
-
-                                <value>fultonef.integ.amazon.com:8080</value>
-                                <!--<value>fultonef.aka.corp.amazon.com:8080</value>-->
+                                <value>localhost:8080</value>
                             </list>
                         </property>
                     </bean>
@@ -82,5 +79,3 @@
         </property>
     </bean>
 </beans>
-
-<!-- https://stackoverflow.com/questions/49683520/apache-ignite-static-ip-wont-connect -->
