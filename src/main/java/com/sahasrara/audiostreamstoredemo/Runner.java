@@ -24,17 +24,18 @@ public class Runner {
 
 
     public static void main(String[] args) {
-        ExecutorService executorService = Executors.newCachedThreadPool();
+        ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         List<DemoRunner.RunInformation> measurements;
         int runnerCount = 1;
 
         // Ignite
-        for (int i = 0; i < 30; i++) {
+        IgniteRunner igniteRunner = new IgniteRunner(executorService, runnerCount);
+        for (int i = 0; i < 30_000; i++) {
             measurements = new LinkedList<>();
-            IgniteRunner igniteRunner = new IgniteRunner(executorService, runnerCount);
+            System.out.println("iteration: " + i);
             benchmark(igniteRunner, runnerCount, executorService, measurements);
-            igniteRunner.shutdown();
         }
+        igniteRunner.shutdown();
 
         // Redis
         for (int i = 0; i < 30; i++) {

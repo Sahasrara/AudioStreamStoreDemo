@@ -57,6 +57,17 @@ public class IgniteRunner implements Runner.DemoRunner {
             cacheNames.add(String.format(STREAM_ID_PATTERN, i));
         }
         ignite.destroyCaches(cacheNames);
+
+        for (int i = 0; i < runnerCount; i++) {
+            // Configure the cache
+            CacheConfiguration<Integer, byte[]> cacheConfiguration = new CacheConfiguration();
+            cacheConfiguration.setName(String.format(STREAM_ID_PATTERN, i));
+            cacheConfiguration.setGroupName(STREAM_ID);
+            cacheConfiguration.setExpiryPolicyFactory(CreatedExpiryPolicy.factoryOf(Duration.ONE_MINUTE));
+
+            // Create Cache
+            ignite.getOrCreateCache(cacheConfiguration).close();
+        }
         try {
             Thread.sleep(2000);
         } catch (InterruptedException e) {
@@ -79,15 +90,6 @@ public class IgniteRunner implements Runner.DemoRunner {
 
         // Create Stream ID
         String streamId = String.format(STREAM_ID_PATTERN, runInformation.spawnId);
-
-        // Configure the cache
-        CacheConfiguration<Integer, byte[]> cacheConfiguration = new CacheConfiguration();
-        cacheConfiguration.setName(streamId);
-        cacheConfiguration.setGroupName(STREAM_ID);
-        cacheConfiguration.setExpiryPolicyFactory(CreatedExpiryPolicy.factoryOf(Duration.ONE_MINUTE));
-
-        // Create Cache
-        ignite.getOrCreateCache(cacheConfiguration).close();
 
         // Stream Audio
         Future streamFuture = streamAudio(ignite, streamId, runInformation.fileName, runInformation);
@@ -133,8 +135,8 @@ public class IgniteRunner implements Runner.DemoRunner {
                     } else {
                         streamer.addData(i++, musicChunk);
                     }
-                    streamer.tryFlush();
                 }
+                streamer.tryFlush();
             } catch (Exception e) {
                 System.out.println("Failure during write" + e.getMessage());
             }
